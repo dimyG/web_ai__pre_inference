@@ -1,0 +1,2 @@
+class RunpodStatusUnexpectedError(Exception):
+    pass
