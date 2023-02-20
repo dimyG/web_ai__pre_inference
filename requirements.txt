@@ -9,6 +9,8 @@ anyio==3.6.2
     #   httpcore
     #   starlette
     #   watchfiles
+async-timeout==4.0.2
+    # via redis
 certifi==2022.12.7
     # via
     #   httpcore
@@ -64,6 +66,8 @@ pyyaml==6.0
     # via
     #   fastapi
     #   uvicorn
+redis==4.5.1
+    # via -r requirements.in
 rfc3986[idna2008]==1.5.0
     # via httpx
 six==1.16.0

@@ -5,16 +5,20 @@ import httpx
 import base64
 from pathlib import Path
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from exceptions import RunpodStatusUnexpectedError
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+# from slowapi.middleware import SlowAPIMiddleware
+from slowapi.errors import RateLimitExceeded
 
 # todo: if we don't need any pre processing apart from rate limiting, we can just use this service for rate limiting
 # and not for the actual inference calls and response handling. When the client
 # wants to run one of this service's endpoints, it will send a request that will be checked against the rate limit.
 # If the rate limit is not exceeded, the client (and not this service) will initiate the inference request
-# to the model's endpoint.
+# to the model's endpoint. Notice that this approach has some security implications (key stored in client, etc.),
 
 src_path = Path('.')
 env_path = src_path / '.env'
@@ -24,8 +28,20 @@ debug = os.environ.get("DEBUG")
 runpod_status_url = os.environ.get("RUNPOD_STATUS_URL")
 runpod_run_url = os.environ.get("RUNPOD_RUN_URL")
 runpod_api_key = os.environ.get("RUNPOD_API_KEY")
+redis_url = os.environ.get("REDIS_URL")
+redis_db = os.environ.get("REDIS_DB")
+
+redis_host = redis_url.split("//")[1].split(":")[0]
+redis_port = redis_url.split("//")[1].split(":")[1].split("/")[0]
+
+limiter_storage_uri = f"redis://{redis_host}:{redis_port}/{redis_db}"
+
+limiter = Limiter(key_func=get_remote_address, storage_uri=limiter_storage_uri)
 
 app = FastAPI()
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 origins = ["*"]
 
@@ -152,7 +168,9 @@ async def read_root():
 
 
 @app.post("/generate_image/", response_model=None)
-async def generate_img(prompt: str, model: str, seed: int, height: int, width: int, guidance_scale: float, num_inference_steps: int):
+@limiter.limit("10/minute")
+async def generate_img(prompt: str, model: str, seed: int, height: int, width: int, guidance_scale: float,
+                       num_inference_steps: int, request: Request):
     runpod_run_input_data = {
         'input': {
             'prompt': prompt,
