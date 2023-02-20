@@ -13,6 +13,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 # from slowapi.middleware import SlowAPIMiddleware
 from slowapi.errors import RateLimitExceeded
+import jwt
 
 # todo: if we don't need any pre processing apart from rate limiting, we can just use this service for rate limiting
 # and not for the actual inference calls and response handling. When the client
@@ -30,6 +31,7 @@ runpod_run_url = os.environ.get("RUNPOD_RUN_URL")
 runpod_api_key = os.environ.get("RUNPOD_API_KEY")
 redis_url = os.environ.get("REDIS_URL")
 redis_db = os.environ.get("REDIS_DB")
+jwt_secret = os.environ.get("JWT_SECRET")
 
 redis_host = redis_url.split("//")[1].split(":")[0]
 redis_port = redis_url.split("//")[1].split(":")[1].split("/")[0]
@@ -167,10 +169,24 @@ async def read_root():
     return {"Hello": "World"}
 
 
+async def jwt_decode(request: Request, secret: str = jwt_secret):
+    try:
+        encoded_jwt = request.headers['Authorization'].split(' ')[1]
+    except KeyError:
+        # anonymous user
+        return
+    except Exception:
+        # if expired token, invalid token, etc. treat it the same as an anonymous user
+        return
+    return jwt.decode(encoded_jwt, secret, algorithms=["HS256"])
+
+
 @app.post("/generate_image/", response_model=None)
-@limiter.limit("10/minute")
+# @limiter.limit("10/minute")
 async def generate_img(prompt: str, model: str, seed: int, height: int, width: int, guidance_scale: float,
                        num_inference_steps: int, request: Request):
+    decoded_jwt = await jwt_decode(request)
+
     runpod_run_input_data = {
         'input': {
             'prompt': prompt,

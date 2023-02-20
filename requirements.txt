@@ -58,6 +58,8 @@ packaging==22.0
     # via limits
 pydantic==1.10.5
     # via fastapi
+pyjwt==2.6.0
+    # via -r requirements.in
 python-dotenv==0.21.1
     # via uvicorn
 python-multipart==0.0.5
