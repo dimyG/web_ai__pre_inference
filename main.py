@@ -14,12 +14,20 @@ from slowapi.util import get_remote_address
 # from slowapi.middleware import SlowAPIMiddleware
 from slowapi.errors import RateLimitExceeded
 import jwt
+import logging
+from logging.config import dictConfig
+from config import LogConfig
+
 
 # todo: if we don't need any pre processing apart from rate limiting, we can just use this service for rate limiting
 # and not for the actual inference calls and response handling. When the client
 # wants to run one of this service's endpoints, it will send a request that will be checked against the rate limit.
 # If the rate limit is not exceeded, the client (and not this service) will initiate the inference request
 # to the model's endpoint. Notice that this approach has some security implications (key stored in client, etc.),
+
+# Note: It is recommended to call the dictConfig(...) function before the FastAPI initialization.
+dictConfig(LogConfig().dict())
+logger = logging.getLogger("pre_inference")
 
 src_path = Path('.')
 env_path = src_path / '.env'
@@ -172,13 +180,14 @@ async def read_root():
 async def jwt_decode(request: Request, secret: str = jwt_secret):
     try:
         encoded_jwt = request.headers['Authorization'].split(' ')[1]
+        decoded_jwt = jwt.decode(encoded_jwt, secret, algorithms=["HS256"])
     except KeyError:
         # anonymous user
         return
     except Exception:
         # if expired token, invalid token, etc. treat it the same as an anonymous user
         return
-    return jwt.decode(encoded_jwt, secret, algorithms=["HS256"])
+    return decoded_jwt
 
 
 @app.post("/generate_image/", response_model=None)
@@ -186,6 +195,7 @@ async def jwt_decode(request: Request, secret: str = jwt_secret):
 async def generate_img(prompt: str, model: str, seed: int, height: int, width: int, guidance_scale: float,
                        num_inference_steps: int, request: Request):
     decoded_jwt = await jwt_decode(request)
+    # logger.debug(f'decoded_jwt: {decoded_jwt}')
 
     runpod_run_input_data = {
         'input': {
