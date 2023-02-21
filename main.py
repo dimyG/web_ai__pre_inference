@@ -116,7 +116,6 @@ async def runpod_status_output(
                 )
 
             http_status = status_call_response.status_code
-            print(f"http status: {http_status}, status_url response: {status_call_response.json()}")
 
             if http_status == 500 and num_errors < num_retries_on_error:
                 num_errors += 1
@@ -125,31 +124,32 @@ async def runpod_status_output(
             elif http_status == 200:
                 status = status_call_response.json()["status"]
                 if status == "IN_PROGRESS":
-                    print("IN_PROGRESS")
+                    logger.debug("IN_PROGRESS")
                     await asyncio.sleep(delay)
                 elif status == "IN_QUEUE":
-                    print("IN_QUEUE")
+                    logger.debug("IN_QUEUE")
                     await asyncio.sleep(delay)
                 elif status == "COMPLETED":
-                    print("COMPLETED")
+                    # logger.debug(f"status_url response: {status_call_response.json()}")
+                    logger.debug("COMPLETED")
                     return status_call_response.json()["output"]
                 elif status == "FAILED":
-                    print("FAILED")
+                    logger.debug("FAILED")
                     return None
                 else:
-                    print(f"http_status: {http_status}, unexpected response: {status_call_response.json()}")
+                    logger.warning(f"http_status: {http_status}, unexpected response: {status_call_response.json()}")
                     raise RunpodStatusUnexpectedError(f'unexpected response: {status_call_response.json()}')
 
             else:
-                print(f"unexpected http status: {http_status}, unexpected response: {status_call_response.json()}")
+                logger.warning(f"unexpected http status: {http_status}, unexpected response: {status_call_response.json()}")
                 raise RunpodStatusUnexpectedError(f'http_status: {http_status}, unexpected response: {status_call_response.json()}')
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        logger.debug(f"Unexpected error: {e}")
         if num_errors < num_retries_on_error:
             num_errors += 1
             return await runpod_status_output(run_id, num_errors)
         else:
-            print(f"Too many errors: {num_errors}")
+            logger.warning(f"Too many errors: {num_errors}.")
             return None
 
 
@@ -165,7 +165,7 @@ async def txt2img_runpod(input_data, run_url=runpod_run_url, runpod_key=runpod_a
         try:
             base64_image_string = await runpod_status_output(run_id)
         except Exception as e:
-            print(e)
+            logger.warning(e)
             return None
         return base64_image_string
 
@@ -220,7 +220,7 @@ async def generate_img(prompt: str, model: str, seed: int, height: int, width: i
             'num_inference_steps': num_inference_steps
         }
     }
-    print(f'runpod_run_input_data: {runpod_run_input_data}')
+    logger.debug(f'runpod_run_input_data: {runpod_run_input_data}')
     # todo: return bytes from inference. Currently inference returns a base64encodedstring which can't be
     # streamed with a StreamingResponse because it is
     # not an iterator. so we must decode it and make it a file like object to stream it. Probably a better way to
