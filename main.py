@@ -17,7 +17,9 @@ import jwt
 import logging
 from logging.config import dictConfig
 from config import LogConfig
-
+from utils import User
+from middleware import request_context_middleware, _request_ctx_var
+from starlette.middleware.base import BaseHTTPMiddleware
 
 # todo: if we don't need any pre processing apart from rate limiting, we can just use this service for rate limiting
 # and not for the actual inference calls and response handling. When the client
@@ -43,18 +45,16 @@ jwt_secret = os.environ.get("JWT_SECRET")
 
 redis_host = redis_url.split("//")[1].split(":")[0]
 redis_port = redis_url.split("//")[1].split(":")[1].split("/")[0]
-
 limiter_storage_uri = f"redis://{redis_host}:{redis_port}/{redis_db}"
-
 limiter = Limiter(key_func=get_remote_address, storage_uri=limiter_storage_uri)
+origins = ["*"]
+delay = 1.5  # in seconds
 
 app = FastAPI()
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
-origins = ["*"]
-
+app.add_middleware(BaseHTTPMiddleware, dispatch=request_context_middleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -62,8 +62,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-delay = 1.5  # in seconds
 
 
 async def runpod_status_output(
@@ -177,7 +175,7 @@ async def read_root():
     return {"Hello": "World"}
 
 
-async def jwt_decode(request: Request, secret: str = jwt_secret):
+def jwt_decode(request: Request, secret: str = jwt_secret):
     try:
         encoded_jwt = request.headers['Authorization'].split(' ')[1]
         decoded_jwt = jwt.decode(encoded_jwt, secret, algorithms=["HS256"])
@@ -190,13 +188,27 @@ async def jwt_decode(request: Request, secret: str = jwt_secret):
     return decoded_jwt
 
 
+def get_limit_for_user() -> str:
+    """ Return the rate limit for the current user.
+     Have in mind that as of slowapi version 0.1.7, you can't pass the request object to a function that returns
+     the rate limit and is called from the @limiter.limit decorator.
+     See issue https://github.com/laurentS/slowapi/issues/41 and https://github.com/laurentS/slowapi/issues/13
+     So the alternative is to add the current request to the global context using
+     a middleware and then retrieve it from the global context in the function that returns the rate limit.
+     This is what the request_context_middleware does."""
+    request = _request_ctx_var.get()
+    decoded_jwt = jwt_decode(request)
+    # logger.debug(f'decoded_jwt: {decoded_jwt}')
+    user = User.from_jwt(decoded_jwt)
+    rate_limit = user.get_rate_limit()
+    # logger.debug(f'Tier {user.tier} - rate_limit: {rate_limit}')
+    return rate_limit
+
+
 @app.post("/generate_image/", response_model=None)
-# @limiter.limit("10/minute")
+@limiter.limit(get_limit_for_user)
 async def generate_img(prompt: str, model: str, seed: int, height: int, width: int, guidance_scale: float,
                        num_inference_steps: int, request: Request):
-    decoded_jwt = await jwt_decode(request)
-    # logger.debug(f'decoded_jwt: {decoded_jwt}')
-
     runpod_run_input_data = {
         'input': {
             'prompt': prompt,

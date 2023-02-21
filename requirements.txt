@@ -21,6 +21,8 @@ colorama==0.4.6
     # via
     #   click
     #   uvicorn
+contextvars==2.4
+    # via -r requirements.in
 deprecated==1.2.13
     # via limits
 dnspython==2.3.0
@@ -44,6 +46,8 @@ idna==3.4
     #   anyio
     #   email-validator
     #   rfc3986
+immutables==0.19
+    # via contextvars
 itsdangerous==2.1.2
     # via fastapi
 jinja2==3.1.2
