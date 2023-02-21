@@ -209,11 +209,13 @@ async def generate_img(prompt: str, model: str, seed: int, height: int, width: i
         }
     }
     print(f'runpod_run_input_data: {runpod_run_input_data}')
-    # todo: maybe stream chunks of the response as they come in to avoid storing the whole image in memory
-    # todo: inference returns a base64encodedstring which can't be streamed with a StreamingResponse because it is
-    # not an iterator. so we decode it and make it a file like object to stream it. Probably a better day to do this
-    # is to send the array of bytes from inference and just resend them back to the web client without additional
-    # processing
+    # todo: return bytes from inference. Currently inference returns a base64encodedstring which can't be
+    # streamed with a StreamingResponse because it is
+    # not an iterator. so we must decode it and make it a file like object to stream it. Probably a better way to
+    # do this is to send from inference the array of bytes directly and just resend them back to the web client without
+    # additional need to decode the string into bytes.
     base64_image_string = await txt2img_runpod(runpod_run_input_data)
+    # base64 decoding is cpu bound so even if it was async it would still block the event loop
     image_bytes = base64.b64decode(base64_image_string)
+    # todo: maybe stream chunks of the response as they come in to avoid storing the whole image in memory
     return StreamingResponse(io.BytesIO(image_bytes), media_type="image/png")
