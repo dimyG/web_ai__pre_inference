@@ -261,3 +261,5 @@ fabric.properties
 # we don't ignone ml_models folder. we want to track the models in git with git-lfs
 #ml_models/
 # ---- end custom gitignore content ----
+
+aws_ecs_container/pre_inference_task.json
