@@ -42,6 +42,11 @@ redis_port = os.environ.get("REDIS_PORT")
 redis_db = os.environ.get("REDIS_DB")
 jwt_secret = os.environ.get("JWT_SECRET")
 
+if redis_port:
+    redis_port = int(redis_port)
+if redis_db:
+    redis_db = int(redis_db)
+    
 limiter_storage_uri = f"redis://{redis_host}:{redis_port}/{redis_db}"
 limiter = Limiter(key_func=get_remote_address, storage_uri=limiter_storage_uri)
 origins = ["*"]
