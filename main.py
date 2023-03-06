@@ -37,12 +37,11 @@ env_path = src_path / '.env'
 load_dotenv(dotenv_path=env_path)  # load environment variables from .env file into the os.environ object.
 
 debug = os.environ.get("DEBUG")
-redis_url = os.environ.get("REDIS_URL")
+redis_host = os.environ.get("REDIS_HOST")
+redis_port = os.environ.get("REDIS_PORT")
 redis_db = os.environ.get("REDIS_DB")
 jwt_secret = os.environ.get("JWT_SECRET")
 
-redis_host = redis_url.split("//")[1].split(":")[0]
-redis_port = redis_url.split("//")[1].split(":")[1].split("/")[0]
 limiter_storage_uri = f"redis://{redis_host}:{redis_port}/{redis_db}"
 limiter = Limiter(key_func=get_remote_address, storage_uri=limiter_storage_uri)
 origins = ["*"]
