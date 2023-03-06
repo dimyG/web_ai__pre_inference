@@ -47,7 +47,7 @@ if redis_port:
 if redis_db:
     redis_db = int(redis_db)
 
-logger.info(f"redis_host: {redis_host}, redis_port: {redis_port}, redis_db: {redis_db}")
+logger.info(f"redis_host: {redis_host}, redis_port: {redis_port}, redis_db: {redis_db}, jwt_secret: {jwt_secret}, debug: {debug}")
 
 limiter_storage_uri = f"redis://{redis_host}:{redis_port}/{redis_db}"
 limiter = Limiter(key_func=get_remote_address, storage_uri=limiter_storage_uri)
