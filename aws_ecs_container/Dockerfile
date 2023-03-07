@@ -15,4 +15,4 @@ RUN apt-get install -y binutils libproj-dev vim
 
 COPY ./ ./
 
-CMD [ "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002", "--keep-alive", "60"]
+CMD [ "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002", "--timeout-keep-alive", "60"]
