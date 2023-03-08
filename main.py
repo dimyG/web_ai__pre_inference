@@ -20,7 +20,7 @@ from config import LogConfig
 from utils import User
 from middleware import request_context_middleware, _request_ctx_var
 from starlette.middleware.base import BaseHTTPMiddleware
-from runpod_calls import txt2img_runpod
+from runpod_calls import txt2img_server_based, runpod_run, runpod_status
 
 # todo: if we don't need any pre processing apart from rate limiting, we can just use this service for rate limiting
 # and not for the actual inference calls and response handling. When the client
@@ -106,6 +106,8 @@ def get_limit_for_user() -> str:
 @limiter.limit(get_limit_for_user)
 async def generate_img(prompt: str, model: str, seed: int, height: int, width: int, guidance_scale: float,
                        num_inference_steps: int, request: Request):
+    # In this version of the service, both the runpod run and the runpod status polling are done by the server
+    # Not currently used
     runpod_run_input_data = {
         'input': {
             'prompt': prompt,
@@ -122,8 +124,46 @@ async def generate_img(prompt: str, model: str, seed: int, height: int, width: i
     # not an iterator. so we must decode it and make it a file like object to stream it. Probably a better way to
     # do this is to send from inference the array of bytes directly and just resend them back to the web client without
     # additional need to decode the string into bytes.
-    base64_image_string = await txt2img_runpod(runpod_run_input_data)
+    base64_image_string = await txt2img_server_based(runpod_run_input_data)
     # base64 decoding is cpu bound so even if it was async it would still block the event loop
     image_bytes = base64.b64decode(base64_image_string)
     # todo: maybe stream chunks of the response as they come in to avoid storing the whole image in memory
     return StreamingResponse(io.BytesIO(image_bytes), media_type="image/png")
+
+
+# Only the initiate run endpoint is currently used by the web client. Polling for status is done by the client.
+@app.post("/api/preinference/initiate_run/", response_model=None)
+@limiter.limit(get_limit_for_user)
+async def initiate_run(prompt: str, model: str, seed: int, height: int, width: int, guidance_scale: float,
+                       num_inference_steps: int, request: Request):
+    runpod_run_input_data = {
+        'input': {
+            'prompt': prompt,
+            'model': model,
+            'seed': seed,
+            'height': height,
+            'width': width,
+            'guidance_scale': guidance_scale,
+            'num_inference_steps': num_inference_steps
+        }
+    }
+    run_id = await runpod_run(runpod_run_input_data)
+    return {'run_id': run_id}
+
+
+@app.get("/api/preinference/get_run_status/", response_model=None)
+# @limiter.limit(get_limit_for_user)
+async def get_run_status(run_id: str, request: Request):
+    run_status, base64_image_string = await runpod_status(run_id)
+    return {'run_status': run_status}
+
+
+@app.get("/api/preinference/get_image/", response_model=None)
+@limiter.limit(get_limit_for_user)
+async def get_image(run_id: str, request: Request):
+    # streams the image as a binary string
+    run_status, base64_image_string = await runpod_status(run_id)
+    if run_status == 'COMPLETED':
+        image_bytes = base64.b64decode(base64_image_string)
+        return StreamingResponse(io.BytesIO(image_bytes), media_type="image/png")
+    return {'run_status': run_status}

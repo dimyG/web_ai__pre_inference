@@ -6,11 +6,11 @@ class Tiers:
     @classmethod
     def get_rate_limit(cls, tier: str) -> str:
         if tier == cls.free:
-            return "1/minute; 100/hour"
+            return "5/minute; 30/day"
         elif tier == cls.basic:
-            return "100/minute"
+            return "5/minute; 30/day"
         elif tier == cls.premium:
-            return "1000/minute"
+            return "60/minute; 2000/day"
         else:
             raise Exception(f"Unknown tier: {tier}")
 

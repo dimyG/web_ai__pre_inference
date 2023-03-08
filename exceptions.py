@@ -1,2 +1,2 @@
-class RunpodStatusUnexpectedError(Exception):
+class RunpodStatusUnexpectedResponse(Exception):
     pass
