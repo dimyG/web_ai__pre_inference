@@ -85,6 +85,15 @@ def jwt_decode(request: Request, secret: str = jwt_secret):
     return decoded_jwt
 
 
+def limiter_key(request: Request) -> str:
+    referer = request.headers.get('referer')
+    logger.debug(f'referer: {referer}')
+    if referer:
+        return referer.split('://')[1].split(':')[0]
+    else:
+        return get_remote_address(request)
+
+
 def get_limit_for_user() -> str:
     """ Return the rate limit for the current user.
      Have in mind that as of slowapi version 0.1.7, you can't pass the request object to a function that returns
@@ -94,6 +103,9 @@ def get_limit_for_user() -> str:
      a middleware and then retrieve it from the global context in the function that returns the rate limit.
      This is what the request_context_middleware does."""
     request = _request_ctx_var.get()
+    logger.debug(f'request: {request}, {request.headers}, {request.client}, {request.client.host}')
+    logger.debug(f'get_remote_address: {get_remote_address(request)}')
+    logger.debug(f'limiter_key: {limiter_key(request)}')
     decoded_jwt = jwt_decode(request)
     # logger.debug(f'decoded_jwt: {decoded_jwt}')
     user = User.from_jwt(decoded_jwt)
