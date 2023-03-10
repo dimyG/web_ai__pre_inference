@@ -86,10 +86,11 @@ def jwt_decode(request: Request, secret: str = jwt_secret):
 
 
 def limiter_key(request: Request) -> str:
-    referer = request.headers.get('referer')
-    logger.debug(f'referer: {referer}')
-    if referer:
-        return referer.split('://')[1].split(':')[0]
+    forwarded = request.headers.get('forwarded')
+    logger.debug(f'forwarded: {forwarded}')
+    if forwarded:
+        #  return the ip of the first proxy (the client) in the chain
+        return forwarded.split(';')[0].split('=')[1]
     else:
         return get_remote_address(request)
 
