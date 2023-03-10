@@ -47,10 +47,25 @@ if redis_port:
 if redis_db:
     redis_db = int(redis_db)
 
-# logger.info(f"redis_host: {redis_host}, redis_port: {redis_port}, redis_db: {redis_db}")
+
+def limiter_key(request: Request) -> str:
+    # slow api's get_remote_address returns request.client.host. But if the request is proxied through AWS API Gateway
+    # then the client's ip address is in the forwarded header not in the host (the request.client.host doesn't exist).
+    # So we need to check if the request is proxied and if so, get the client's ip address from the forwarded header.
+    # The forwarded header is a comma separated list of proxies that the request has passed through.
+    forwarded = request.headers.get('forwarded')
+    # logger.debug(f'forwarded: {forwarded}')
+    if forwarded:
+        #  return the ip of the first proxy (the client) in the chain
+        return forwarded.split(';')[0].split('=')[1]
+    else:
+        logger.error('forwarded header not found, a common limiter key will be used')
+        # this would be the AWS API Gateway host (the last proxy in the chain) which is the same for all users
+        return request.headers.get('host')
+
 
 limiter_storage_uri = f"redis://{redis_host}:{redis_port}/{redis_db}"
-limiter = Limiter(key_func=get_remote_address, storage_uri=limiter_storage_uri)
+limiter = Limiter(key_func=limiter_key, storage_uri=limiter_storage_uri)
 origins = ["*"]
 
 app = FastAPI()
@@ -85,16 +100,6 @@ def jwt_decode(request: Request, secret: str = jwt_secret):
     return decoded_jwt
 
 
-def limiter_key(request: Request) -> str:
-    forwarded = request.headers.get('forwarded')
-    logger.debug(f'forwarded: {forwarded}')
-    if forwarded:
-        #  return the ip of the first proxy (the client) in the chain
-        return forwarded.split(';')[0].split('=')[1]
-    else:
-        return get_remote_address(request)
-
-
 def get_limit_for_user() -> str:
     """ Return the rate limit for the current user.
      Have in mind that as of slowapi version 0.1.7, you can't pass the request object to a function that returns
@@ -104,9 +109,6 @@ def get_limit_for_user() -> str:
      a middleware and then retrieve it from the global context in the function that returns the rate limit.
      This is what the request_context_middleware does."""
     request = _request_ctx_var.get()
-    logger.debug(f'request: {request}, {request.headers}, {request.client}, {request.client.host}')
-    logger.debug(f'get_remote_address: {get_remote_address(request)}')
-    logger.debug(f'limiter_key: {limiter_key(request)}')
     decoded_jwt = jwt_decode(request)
     # logger.debug(f'decoded_jwt: {decoded_jwt}')
     user = User.from_jwt(decoded_jwt)
