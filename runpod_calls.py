@@ -205,5 +205,6 @@ async def runpod_run(input_data, run_url=runpod_run_url, runpod_key=runpod_api_k
     async with httpx.AsyncClient() as client:
         response = await client.post(run_url, json=input_data, headers=headers)
         response_data = response.json()
+        logger.debug(f"response data: {response_data}")
         run_id = response_data["id"]
         return run_id
