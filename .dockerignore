@@ -1,0 +1,16 @@
+.git
+.gitignore
+.gitattributes
+.idea
+.github
+__pycache__
+**/__pycache__
+*.pyc
+# Never bake development secrets into an image. Container env supplies everything, and
+# python-dotenv's load_dotenv() defaults to override=False so it defers to existing env vars.
+# This matters most here: the RunPod API key must come from the container environment.
+.env
+*.env
+app.log
+# NOTE: dev_container/ and aws_ecs_container/ are deliberately NOT excluded. This file applies
+# to every build from this context.
