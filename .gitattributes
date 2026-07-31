@@ -1,0 +1,5 @@
+# core.autocrlf=true on the dev workstation would otherwise rewrite these to CRLF on
+# checkout, which makes Linux containers fail with "bad interpreter: no such file or directory".
+* text=auto
+*.sh text eol=lf
+Dockerfile text eol=lf
